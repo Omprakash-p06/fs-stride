@@ -62,6 +62,7 @@ analysis/*.egg-info/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.venv/
 
 # AI agent entry points, GSD planning, MCP, Copilot, and Graphicle local files
 AGENTS.md
@@ -73,6 +74,7 @@ GEMINI.md
 T3CODE.md
 FREEBUFF.md
 .claude/
+.agents/
 .codex/
 .opencode/
 .antigravity/

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs-stride.local/schemas/raw.schema.json",
+  "title": "fs-stride raw.csv row schema",
+  "description": "Schema for each row of results/<RUN>/raw.csv (14 columns).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "host",
+    "mode",
+    "stride",
+    "threads",
+    "placement",
+    "block",
+    "order",
+    "role",
+    "total_ops",
+    "elapsed_s",
+    "ns_per_op",
+    "cpus",
+    "loadavg1"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["atomic", "coupled-pair", "volatile", "rw-asymmetric"]
+    },
+    "stride": {
+      "type": "integer",
+      "minimum": 8,
+      "multipleOf": 8
+    },
+    "threads": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "placement": {
+      "type": "string",
+      "enum": ["cores", "smt-sibling", "spread"]
+    },
+    "block": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "role": {
+      "type": "string",
+      "enum": ["ref", "test", "sentinel"]
+    },
+    "total_ops": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "elapsed_s": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "ns_per_op": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "cpus": {
+      "type": "string",
+      "pattern": "^[0-9]+(;[0-9]+)*$"
+    },
+    "loadavg1": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

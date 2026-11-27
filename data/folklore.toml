@@ -1,0 +1,73 @@
+# External cache-line padding constants tested against empirical knees.
+# Every entry records: url, version (or commit), retrieval_date, x86_64_bytes,
+# aarch64_bytes, s390x_bytes, and notes.
+
+[crossbeam_utils]
+name = "crossbeam-utils CachePadded"
+url = "https://github.com/crossbeam-rs/crossbeam/blob/master/crossbeam-utils/src/cache_padded.rs"
+version = "0.8.23"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 128
+aarch64_bytes = 128
+s390x_bytes = 256
+notes = "x86_64/aarch64/powerpc64 use 128 B; s390x uses 256 B; arm/mips/riscv32 use 32 B; fallback 64 B."
+
+[folly]
+name = "Facebook Folly Align.h"
+url = "https://github.com/facebook/folly/blob/main/folly/lang/Align.h"
+version = "main-2026-11-27"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 128
+aarch64_bytes = 64
+s390x_bytes = 64
+notes = "Fallback ternary (kIsArchArm || kIsArchS390X) ? 64 : 128 when std::hardware_destructive_interference_size is not forwarded."
+
+[hotspot_jvm]
+name = "OpenJDK HotSpot @Contended (JEP 142)"
+url = "https://dzone.com/articles/what-false-sharing-is-and-how-jvm-prevents-it"
+version = "JEP-142-ContendedPaddingWidth-128"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 128
+aarch64_bytes = 128
+s390x_bytes = 128
+notes = "Default -XX:ContendedPaddingWidth=128 across architectures."
+
+[go_runtime]
+name = "Go internal/cpu CacheLinePadSize"
+url = "https://github.com/golang/go/tree/master/src/internal/cpu"
+version = "go-master-2026-11-27"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 64
+aarch64_bytes = 128
+s390x_bytes = 256
+notes = "cpu_x86.go=64, cpu_arm64.go=128, cpu_s390x.go=256."
+
+[linux_kernel]
+name = "Linux kernel L1_CACHE_BYTES / ____cacheline_aligned"
+url = "https://lore.kernel.org/r/20230214075823.246414-1-feng.tang@intel.com"
+version = "kernel-arch-defaults"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 64
+aarch64_bytes = "64-256"
+s390x_bytes = 256
+notes = "x86 uses CONFIG_X86_L1_CACHE_SHIFT=6 (64 B); arm64 ranges 64-256 B; s390x uses 256 B."
+
+[cpp17_hardware_destructive_interference_size]
+name = "C++17 std::hardware_destructive_interference_size"
+url = "https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size"
+version = "GCC-14-16 / LLVM-22-23"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 64
+aarch64_bytes = "64-256"
+s390x_bytes = 256
+notes = "x86-64 GCC/Clang fallback is 64 B; AArch64 GCC/LLVM 21+ uses 256 B (A64FX conservative maximum)."
+
+[cpython_qsbr]
+name = "CPython 3.15 QSBR padding fixes"
+url = "https://github.com/python/cpython/pull/144554.patch"
+version = "gh-144438 / issue-159860"
+retrieval_date = "2026-11-27"
+x86_64_bytes = 128
+aarch64_bytes = 128
+s390x_bytes = 128
+notes = "gh-144438 (Feb 2026) aligned QSBR array/thread-state to 64 B; issue #159860 (Oct 2026) moved free-threaded QSBR thread-state padding from 64 B to 128 B."

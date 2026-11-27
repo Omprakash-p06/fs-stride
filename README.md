@@ -1,2 +1,341 @@
 # fs-stride
-A reproducible stride-sweep benchmark and paired-statistics analysis for the effective false-sharing distance of CPUs.
+
+**A reproducible stride-sweep benchmark and paired-statistics analysis for the effective false-sharing distance of CPUs.**
+
+[![CI](https://github.com/<org>/fs-stride/actions/workflows/ci.yml/badge.svg)](https://github.com/<org>/fs-stride/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+---
+
+## Why this exists
+
+Programmers pad per-thread data to avoid false sharing, but the right distance is argued from folklore. The ecosystems disagree by 2×–4×:
+
+| Ecosystem | x86-64 | AArch64 | s390x |
+| :--- | :---: | :---: | :---: |
+| crossbeam-utils `CachePadded` | 128 B | 128 B | 256 B |
+| Folly `Align.h` | 64 B | 64 B or 128 B | 64 B |
+| HotSpot JVM `@Contended` | 128 B | 128 B | 128 B |
+| Go `CacheLinePadSize` | 64 B | 64 B | 256 B |
+| Linux `L1_CACHE_BYTES` | 64 B | 64 B–256 B | 256 B |
+| C++17 `hardware_destructive_interference_size` | 64 B | 64 B–256 B | 256 B |
+| CPython 3.15 QSBR fix | 64 B → 128 B | 128 B | 128 B |
+
+Real production scaling regressions still happen — CPython Issue #159860 (October 2026) fixed one by moving from 64 B to 128 B padding on an Apple M4 Pro. Meanwhile counter-based tools (Sheriff, Predator, Cheetah, Huron, `perf c2c`) answer *where* false sharing occurs, not *how far apart* data must be.
+
+**fs-stride answers that second question empirically.** It sweeps the byte distance between per-thread counters, measures noise inside the same run, and reports the *knee* — the smallest distance beyond which more padding no longer helps — with 99% intervals and an explicit `inconclusive` verdict when the machine is too noisy to decide.
+
+No hardware counters. No root. No PMU dependency. One `make all` and you have a table.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/<org>/fs-stride.git
+cd fs-stride
+make all
+```
+
+`make all` builds the C binary, runs the full sweep, and produces `results/<HOST>-<UTC>/report.md`.
+
+Read the result:
+
+```bash
+cat results/*/report.md
+```
+
+That is the entire workflow. On a 4-core laptop, `make all` takes about **1.2–1.8 minutes**; on a 16-core machine, **2.3–2.9 minutes**.
+
+For a shorter smoke test:
+
+```bash
+make smoke    # 2 strides, 2 thread counts, 5 blocks, under 60 s
+```
+
+---
+
+## What you get
+
+Each run writes one directory, `results/<HOST>-<UTC>/`, containing:
+
+| File | What it is |
+| :--- | :--- |
+| `raw.csv` | One row per (mode, stride, threads, placement, block, order) measurement |
+| `meta.json` | Everything about the machine: CPU model, microarchitecture, kernel, governor, SMT topology, P/E-core split, sysfs coherency line size, hypervisor, load average, compiler flags, atomic opcode from disassembly, git SHA, seed |
+| `summary.json` | Per-cell paired log-ratio statistics, Holm-adjusted p-values, 99% intervals, per-configuration knee and class, MDE90 noise gate |
+| `summary.csv` | Flat table for spreadsheet inspection |
+| `report.md` | Human-readable report: environment, noise gate per configuration, primary results, exploratory results (labeled), folklore comparison, limitations |
+| `figs/curve_*.png` | Effect vs. stride, 99% bands, sentinel band shaded, knee marked |
+| `figs/sentinel_hist.png` | Noise distribution across blocks |
+| `figs/knee_by_machine.png` | Cross-machine comparison (after ≥ 3 machines) |
+| `env.log` | Every environment variable and compiler version used |
+
+A typical terminal line:
+
+```
+mode=coupled-pair threads=4 placement=cores knee=128B mde90=2.9% class=pair128 crossbeam(x86-64)=128 agree=yes
+```
+
+---
+
+## How it works
+
+### Two regimes, four modes
+
+The kernel has **two measurement regimes** that together falsify two different hypotheses:
+
+**Regime A — `atomic` mode.** Each thread performs `atomic_fetch_add_explicit(&counter, 1, memory_order_relaxed)` on its own counter at byte offset `thread_id × stride`. This is a serializing read-modify-write (`lock addq` on x86-64; `ldadd`/`ldxr` on AArch64) that cannot be masked by store-buffer forwarding. It measures the hardware coherency granularity. **This is what falsifies H2.**
+
+**Regime B — `coupled-pair` mode.** Threads are grouped into pairs on distinct physical cores; both threads in a pair hammer the *same* counter at offset `pair_id × stride`. Each pair continuously bounces ownership of its shared line, generating L2 RFO misses on every handoff. At stride 64 B, two adjacent pairs share a 128 B aligned chunk, so Intel's L2 adjacent-line prefetcher couples them into a 4-thread contention ring. At stride 128 B, the pairs decouple. **This is what falsifies H1** — a tight per-thread loop cannot, because it generates zero ongoing L2 misses after warm-up.
+
+Two control modes:
+
+**`volatile` mode** performs a plain `volatile` load-add-store. On modern Intel it is *flat* across strides because store-buffer forwarding masks the coherence cost. This is the H4 finding, not a bug — keep it in the output table as evidence.
+
+**`rw-asymmetric` mode** runs one volatile writer next to several readers. It captures realistic non-atomic contention that atomic-only benchmarks miss.
+
+### Timing protocol
+
+Every cell runs for `--target-ms` (default 50 ms) via a chunked loop: barrier → record start → execute `K = 65536` operations → barrier → check elapsed → repeat. This replaces the doubling-calibration routine that Draft 1.0 contained, which overshot by up to 2× per cell and breached the 15-minute runtime budget.
+
+### Statistics
+
+Each run produces **blocks**. Each block is one seeded Fisher-Yates permutation of all cells plus one sentinel (`256_B` — a second measurement of stride 256). Block 0 is discarded as warm-up. Default `B = 30`.
+
+For each non-reference stride `s` and block `b`, compute the within-block paired log-ratio against that block's own stride-256 reference:
+
+```
+d[s,b] = ln(y[s,b] / y[256,b])
+```
+
+Within-block pairing cancels thermal throttling, frequency scaling, and background drift. Then, for each stride, compute the one-sided paired t-statistic and exact right-tail p-value, and apply **Holm-Bonferroni correction across the fixed primary family (m = 6 non-reference strides) at family-wise α = 0.01**.
+
+A stride is flagged **contended** iff its Holm-adjusted p-value ≤ 0.01 *and* its point slowdown is > 1% (a practical floor).
+
+The **knee** is the smallest stride beyond which no larger stride is contended.
+
+The **MDE90 gate** marks a configuration `inconclusive` if the sentinel's minimum detectable effect at 90% power exceeds 10% — meaning the machine cannot resolve a 10% effect at 90% power on that configuration. Without this gate, cloud VM noise would produce spurious "flat" verdicts.
+
+### What the classes mean
+
+| Class | Meaning |
+| :--- | :--- |
+| `flat` | No stride is contended. Padding does not help. |
+| `line64` | Knee at 64 B — 64 B coherency granularity, no adjacent-line prefetcher effect. |
+| `pair128` | Knee at 128 B — consistent with an active L2 adjacent-line prefetcher coupling adjacent pairs. |
+| `wider` | Knee at 256 B or above — 128 B granularity, multi-socket, or a wider prefetcher. |
+| `irregular` | Significance is not monotone in stride. Investigate before drawing conclusions. |
+| `inconclusive` | Sentinel MDE90 > 10%. The machine is too noisy. |
+
+---
+
+## Hypotheses tested
+
+Each run tests four falsifiable hypotheses:
+
+- **H1** — On Intel x86-64 with the L2 adjacent-line prefetcher enabled, `coupled-pair` is slower at 64 B spacing than at 128 B spacing beyond the noise floor.
+- **H2** — The `atomic` knee equals the hardware coherency granularity (64 B on most x86, 128 B on parts with 128 B granularity such as Apple silicon).
+- **H3** — On shared cloud VMs, the MDE90 gate returns `inconclusive` for a measurable fraction of configurations.
+- **H4** — Plain-store (volatile) false sharing can be masked relative to atomic read-modify-write on modern Intel, due to store-buffer forwarding.
+
+H3 is tested by the weekly `measure.yml` workflow on GitHub-hosted runners, which are cloud VMs. H1 and H4 are optionally tested *causally* on bare-metal Intel or AMD using `scripts/msr_ablate.sh` to toggle the prefetcher MSR.
+
+---
+
+## Installation
+
+### Requirements
+
+- **Linux x86-64 or AArch64.** macOS and Windows are unsupported (thread pinning differs).
+- **GCC ≥ 14** (16 preferred) or **Clang ≥ 22** (23 preferred), with OpenMP.
+- **Python ≥ 3.12** with `numpy`, `scipy`, `matplotlib`.
+- That is all. No GPU, no MPI, no hardware counters, no root in the default path.
+
+### From a release tarball
+
+```bash
+tar xzf fs-stride-vX.Y.Z.tar.gz
+cd fs-stride
+make all
+```
+
+### From source with a virtualenv
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r analysis/requirements.lock
+make all
+```
+
+### Optional: bare-metal causal ablation (Intel / AMD only)
+
+For direct causal evidence on H1, on a bare-metal machine with `msr-tools` and root:
+
+```bash
+sudo ./scripts/msr_ablate.sh --dry-run         # shows intended writes, changes nothing
+sudo ./scripts/msr_ablate.sh --confirm         # toggles MSR 0x1A4 bit 1 or 0xC0000108, restores on exit
+```
+
+The default path never calls this script. NFR-07 guarantees unprivileged execution of `make all`.
+
+### Optional: `perf c2c` oracle
+
+On a host with PMU support:
+
+```bash
+./scripts/c2c_check.sh
+```
+
+This records `perf c2c` HITM counts at a small and a large stride and stores them as a sidecar in the run directory. If `perf c2c` is unavailable or refuses to run (`perf_event_paranoid` too strict, AMD Zen 3 without IBS, Arm without SPE), the script prints `skipped` and exits cleanly — it is not a gate.
+
+---
+
+## Usage
+
+```
+make help                      show available targets
+make all                       build + sweep + analyze + report (the main command)
+make smoke                     short pipeline (< 60 s), good for CI and iteration
+make sweep                     full sweep without rebuilding
+make test                      unit tests under ASan and UBSan
+make test-asm                  disassembly check (UT-04)
+make test-sim                  statistical validation ST-01..ST-03
+make lint                      compilers with -Werror, ruff, shellcheck
+make clean                     remove binary and generated artifacts
+make submit-bundle             validate and package this run for community contribution
+```
+
+### Custom runs
+
+```bash
+./fs_stride \
+  --modes atomic,coupled-pair,volatile \
+  --strides 8,16,32,64,128,256,512 \
+  --threads 1,2,4,8 \
+  --placement cores \
+  --target-ms 50 \
+  --blocks 30 \
+  --seed 42 \
+  > results/my-run/raw.csv
+
+python3 -m fs_stride_analysis.cli analyze results/my-run
+```
+
+### Environment variables
+
+| Variable | Default | Effect |
+| :--- | :--- | :--- |
+| `OMP_NUM_THREADS` | unset | Ignored if `--threads` is passed; otherwise recorded in `meta.json` |
+| `OMP_PROC_BIND`, `OMP_PLACES` | unset | **Not used for pinning.** If set, recorded in `meta.json` as informational only |
+| `TRIALS` | `20` | Override the default trial count for `run_all.sh` |
+| `THREADS_LIST` | derived from `nproc` | Override the default thread list |
+
+Pinning is done via `sched_setaffinity` driven by `/sys/devices/system/cpu/cpu*/topology/core_cpus_list`, not via OpenMP. This works identically under libgomp and libomp.
+
+---
+
+## Output contract
+
+`raw.csv` columns:
+
+```
+run_id, host, mode, stride, threads, placement, block, order, role, total_ops, elapsed_s, ns_per_op, cpus, loadavg1
+```
+
+`role` is `ref`, `test`, or `sentinel`. `cpus` is the comma-separated list of actual `sched_getcpu()` values per thread.
+
+`summary.json` schema: see `schemas/summary.schema.json`. Per-cell fields include `mode`, `threads`, `placement`, `stride`, `n_blocks`, `mean_log_ratio`, `sd`, `effect_pct`, `ci99_low_pct`, `ci99_high_pct`, `p_raw`, `p_holm`, `primary`, `contended`. Per-configuration fields include `knee_bytes`, `class`, `mde90_pct`, `gate`. The run-level object includes the folklore comparison table.
+
+Every field is validated against its JSON schema in CI. If you are writing a downstream tool that consumes `summary.json`, pin to the schema version in `schemas/summary.schema.json`.
+
+---
+
+## Reproducibility
+
+The paper's headline claim — a public table of measured knees across ≥ 3 machines — is only valid if a fresh clone reproduces the numbers. Verify:
+
+```bash
+git clone https://github.com/<org>/fs-stride.git
+cd fs-stride
+make all
+cat results/*/report.md
+```
+
+Every number in `paper/main.tex` is generated by this command. CI re-runs it on `main` after every merge and compares against a committed baseline; drift > 20% in `P*`, `R*`, sensitivity, or specificity fails the pipeline.
+
+The **statistical validation** (`make test-sim`) must also pass on every commit: global FWER ≤ 1.5% across 1,000 synthetic null sweeps, and power ≥ 90% at 5% and 10% slowdowns across noise σ ∈ {1%, 2%, 3%}. If ST-01 or ST-02 fails, the fix is to **raise `B`**, not to relax thresholds.
+
+---
+
+## Limitations
+
+fs-stride does not:
+
+- Detect false sharing in arbitrary programs. It measures the effective padding distance on *this* machine, *this* kernel. For program-level detection, use `perf c2c`, Sheriff, Predator, Cheetah, or Huron.
+- Model `atomic` contention as typical real code. Real code that does plain stores may be masked (that is H4). Real code that shares one counter is pathological (that is the kernel).
+- Cover systems where the OS-reported cache line size does not match the cross-core granularity. Apple M1–M4 are the canonical case: `CTR_EL0` reports 64 B L1D lines, but L2/SLC are 128 B, and Regime A measures a 128 B knee. This is the *point* — empirical measurement is the only reliable answer.
+- Run on shared cloud VMs without noise. That is why the MDE90 gate exists. Runs that are `inconclusive` stay `inconclusive` in the table; they are not silently dropped.
+- Cover prefetcher behavior when the BIOS disables it. H1 is tested observationally by default and causally only when `scripts/msr_ablate.sh` runs on bare metal.
+- Cover heap adjacency in real programs. The kernel allocates a contiguous buffer; real programs have arbitrary adjacency. This is a controlled experiment, not a faithful reproduction of any specific production bug.
+
+The generated `report.md` includes a Limitations section populated with the actual `n` and machine count for that run.
+
+---
+
+## Contributing
+
+### Adding a machine to the public atlas
+
+If you have a machine that isn't yet in `docs/atlas.md` (Ryzen 9000, Arrow Lake, Apple M4, Graviton4, POWER10, s390x, RISC-V), your run is a data contribution:
+
+```bash
+make all
+make submit-bundle
+# follow the printed instructions to open a data PR
+```
+
+The bundle is validated automatically by `validate-data.yml`: schema, meta completeness, sentinel presence, and regenerated atlas. Data PRs are rejected without all four.
+
+### Code contributions
+
+See `AGENTS.md` for the full repository rules. In brief:
+
+- Every change goes through a PR. No direct commits to `main`.
+- Every PR requires a **Consequence Brief** — the target symbol, callers, blast radius, hypotheses at risk, and the tests that would catch a regression.
+- Frozen scientific invariants (`stats.py::mde90`, `classify.py::knee`, `kernel.c::run_cell`, and others) require two reviewers and a paper-section update.
+- Commit format is Conventional Commits 1.0.0, signed off for DCO, with an `Assisted-by:` trailer if AI-assisted.
+- `make lint && make test && make test-sim && make smoke` must pass before opening the PR.
+
+---
+
+## Citation
+
+If you use fs-stride in academic work, cite:
+
+```bibtex
+@misc{fs-stride-2026,
+  title  = {fs-stride: Measuring the effective false-sharing distance of CPUs},
+  author = {<author list>},
+  year   = {2026},
+  url    = {https://github.com/<org>/fs-stride},
+  doi    = {10.5281/zenodo.XXXXXXX},
+  note   = {Reproducible stride-sweep benchmark and paired-statistics analysis}
+}
+```
+
+A `CITATION.cff` file is included; GitHub's "Cite this repository" button reads it.
+
+---
+
+## License
+
+MIT for all original code. `NOTICE` lists reused components and their upstream licenses. No code is copied from other repositories; if you wish to reuse code from a neighbor project (crossbeam, Folly, Sheriff, etc.), run `scripts/license_check.sh` first and add the attribution to `NOTICE`.
+
+---
+
+## Acknowledgments
+
+The design of the `coupled-pair` regime follows Peter Cordes's explanation on Stack Overflow #72126606, which identifies that a tight per-thread loop cannot falsify the Intel L2 adjacent-line prefetcher because it generates zero ongoing L2 misses. The 50 ms chunked time-cap follows the benchmarking methodology of Georges et al. (OOPSLA 2007), Mytkowicz et al. (ASPLOS 2009), and Kalibera and Jones (ISMM 2013). The paired-block Holm-Bonferroni inference and the MDE-based noise gate are documented in `RESEARCH_PLAN.md`.

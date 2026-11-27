@@ -2,9 +2,24 @@
 
 **A reproducible stride-sweep benchmark and paired-statistics analysis for the effective false-sharing distance of CPUs.**
 
-[![CI](https://github.com/<org>/fs-stride/actions/workflows/ci.yml/badge.svg)](https://github.com/<org>/fs-stride/actions/workflows/ci.yml)
+[![CI](https://github.com/Omprakash-p06/fs-stride/actions/workflows/ci.yml/badge.svg)](https://github.com/Omprakash-p06/fs-stride/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [Quick start](#quick-start)
+- [What you get](#what-you-get)
+- [How it works](#how-it-works)
+- [Hypotheses tested](#hypotheses-tested)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Output contract](#output-contract)
+- [Reproducibility](#reproducibility)
+- [Limitations](#limitations)
+- [Contributing](#contributing)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
@@ -33,7 +48,7 @@ No hardware counters. No root. No PMU dependency. One `make all` and you have a 
 ## Quick start
 
 ```bash
-git clone https://github.com/<org>/fs-stride.git
+git clone https://github.com/Omprakash-p06/fs-stride.git
 cd fs-stride
 make all
 ```
@@ -260,7 +275,7 @@ Every field is validated against its JSON schema in CI. If you are writing a dow
 The paper's headline claim — a public table of measured knees across ≥ 3 machines — is only valid if a fresh clone reproduces the numbers. Verify:
 
 ```bash
-git clone https://github.com/<org>/fs-stride.git
+git clone https://github.com/Omprakash-p06/fs-stride.git
 cd fs-stride
 make all
 cat results/*/report.md
@@ -322,8 +337,7 @@ If you use fs-stride in academic work, cite:
   title  = {fs-stride: Measuring the effective false-sharing distance of CPUs},
   author = {<author list>},
   year   = {2026},
-  url    = {https://github.com/<org>/fs-stride},
-  doi    = {10.5281/zenodo.XXXXXXX},
+  url    = {https://github.com/Omprakash-p06/fs-stride},
   note   = {Reproducible stride-sweep benchmark and paired-statistics analysis}
 }
 ```
@@ -334,7 +348,7 @@ A `CITATION.cff` file is included; GitHub's "Cite this repository" button reads 
 
 ## License
 
-MIT for all original code. `NOTICE` lists reused components and their upstream licenses. No code is copied from other repositories; if you wish to reuse code from a neighbor project (crossbeam, Folly, Sheriff, etc.), run `scripts/license_check.sh` first and add the attribution to `NOTICE`.
+MIT for all original code (see `LICENSE`). No code is copied from other repositories; if you wish to reuse code from a neighbor project (crossbeam, Folly, Sheriff, etc.), run `scripts/license_check.sh` first and record the attribution in a `NOTICE` file.
 
 ---
 

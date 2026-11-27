@@ -53,3 +53,8 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+#Agent files
+AGENTS.md
+OPENCODE.md
+GEMINI.md

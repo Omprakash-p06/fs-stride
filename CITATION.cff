@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: "fs-stride: Measuring the effective false-sharing distance of CPUs"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: Panda
+    given-names: Omprakash
+    email: omprakash11273@gmail.com
+repository-code: "https://github.com/Omprakash-p06/fs-stride"
+url: "https://github.com/Omprakash-p06/fs-stride"
+license: MIT
+version: 0.1.0
+date-released: "2026-11-27"
+keywords:
+  - false sharing
+  - cache line
+  - benchmark
+  - microarchitecture
+  - reproducibility

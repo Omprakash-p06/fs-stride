@@ -47,6 +47,7 @@ test: build
 		FS_STRIDE_BIN=/tmp/fs_stride_san bash tests/unit/test_schedule.sh && \
 		FS_STRIDE_BIN=/tmp/fs_stride_san bash tests/unit/test_kernel.sh && \
 		rm -f /tmp/fs_stride_san
+	FS_STRIDE_BIN=$(CURDIR)/$(BIN) bash tests/integration/nt05.sh
 	@if ls tests/unit/test_*.py >/dev/null 2>&1; then \
 		PYTHONPATH=analysis $(PYTEST) tests/unit/; \
 	fi

@@ -20,7 +20,9 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-PRINT_META="$("$BIN" --seed "$SEED" --print-meta)"
+META_ARGS=(--seed "$SEED")
+if [ -n "$OMP_THREADS_ARG" ]; then META_ARGS+=(--threads "$OMP_THREADS_ARG" --oversubscribe); fi
+PRINT_META="$("$BIN" "${META_ARGS[@]}" --print-meta)"
 LSCPU_OUT="$(lscpu 2>/dev/null || echo unknown)"
 CPU_MODEL="$(printf '%s\n' "$LSCPU_OUT" | awk -F: '/Model name/ {sub(/^[ \t]+/, "", $2); print $2; exit}')"
 [ -n "$CPU_MODEL" ] || CPU_MODEL="unknown"

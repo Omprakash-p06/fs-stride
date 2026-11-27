@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs-stride.local/schemas/summary.schema.json",
+  "title": "fs-stride summary.json schema",
+  "description": "Statistical summary emitted by fs_stride_analysis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "host",
+    "n_blocks",
+    "alpha_fw",
+    "m_primary",
+    "effect_floor_pct",
+    "mde90_gate_pct",
+    "strict_h1",
+    "cells",
+    "configs",
+    "folklore"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "2.0" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "host": { "type": "string", "minLength": 1 },
+    "n_blocks": { "type": "integer", "minimum": 2 },
+    "alpha_fw": { "type": "number", "const": 0.01 },
+    "m_primary": { "type": "integer", "const": 5 },
+    "effect_floor_pct": { "type": "number", "const": 1.0 },
+    "mde90_gate_pct": { "type": "number", "enum": [5.0, 10.0] },
+    "strict_h1": { "type": "boolean" },
+    "cells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "threads",
+          "placement",
+          "stride",
+          "role",
+          "n_blocks",
+          "mean_log_ratio",
+          "sd",
+          "effect_pct",
+          "ci99_low_pct",
+          "ci99_high_pct",
+          "p_raw",
+          "p_holm",
+          "primary",
+          "contended"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["atomic", "coupled-pair", "volatile", "rw-asymmetric"]
+          },
+          "threads": { "type": "integer", "minimum": 1 },
+          "placement": {
+            "type": "string",
+            "enum": ["cores", "smt-sibling", "spread"]
+          },
+          "stride": { "type": "integer", "minimum": 8 },
+          "role": { "type": "string", "enum": ["test", "sentinel"] },
+          "n_blocks": { "type": "integer", "minimum": 2 },
+          "mean_log_ratio": { "type": "number" },
+          "sd": { "type": "number", "minimum": 0 },
+          "effect_pct": { "type": "number" },
+          "ci99_low_pct": { "type": "number" },
+          "ci99_high_pct": { "type": "number" },
+          "p_raw": { "type": "number", "minimum": 0, "maximum": 1 },
+          "p_holm": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "primary": { "type": "boolean" },
+          "contended": { "type": "boolean" }
+        }
+      }
+    },
+    "configs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "threads",
+          "placement",
+          "primary",
+          "knee_bytes",
+          "class",
+          "mde90_pct",
+          "gate",
+          "drift_alert",
+          "reason"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["atomic", "coupled-pair", "volatile", "rw-asymmetric"]
+          },
+          "threads": { "type": "integer", "minimum": 1 },
+          "placement": {
+            "type": "string",
+            "enum": ["cores", "smt-sibling", "spread"]
+          },
+          "primary": { "type": "boolean" },
+          "knee_bytes": {
+            "type": ["integer", "null"],
+            "minimum": 8
+          },
+          "class": {
+            "type": "string",
+            "enum": ["flat", "line64", "pair128", "wider", "irregular", "inconclusive"]
+          },
+          "mde90_pct": { "type": "number", "minimum": 0 },
+          "gate": { "type": "string", "enum": ["pass", "inconclusive"] },
+          "drift_alert": { "type": "boolean" },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "folklore": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ecosystem",
+          "arch",
+          "mode",
+          "threads",
+          "placement",
+          "measured_knee_bytes",
+          "folklore_bytes",
+          "agree"
+        ],
+        "properties": {
+          "ecosystem": { "type": "string", "minLength": 1 },
+          "arch": { "type": "string", "minLength": 1 },
+          "mode": { "type": "string", "minLength": 1 },
+          "threads": { "type": "integer", "minimum": 1 },
+          "placement": { "type": "string", "minLength": 1 },
+          "measured_knee_bytes": { "type": ["integer", "null"] },
+          "folklore_bytes": { "type": ["integer", "string"] },
+          "agree": { "type": ["boolean", "null"] }
+        }
+      }
+    }
+  }
+}

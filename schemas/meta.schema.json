@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs-stride.local/schemas/meta.schema.json",
+  "title": "fs-stride meta.json schema",
+  "description": "Metadata captured per benchmark run by scripts/capture_meta.sh and fs_stride.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "cpu_model",
+    "microarch",
+    "arch",
+    "lscpu",
+    "kernel",
+    "governor",
+    "smt",
+    "p_core_cpus",
+    "e_core_cpus",
+    "sysfs_coherency_line_size",
+    "hypervisor",
+    "loadavg_start",
+    "compiler",
+    "cflags",
+    "atomic_opcode",
+    "omp_runtime",
+    "omp_num_threads",
+    "omp_proc_bind",
+    "omp_places",
+    "git_sha",
+    "seed",
+    "shared_host",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "cpu_model": { "type": "string", "minLength": 1 },
+    "microarch": { "type": "string", "minLength": 1 },
+    "arch": { "type": "string", "minLength": 1 },
+    "lscpu": { "type": "string", "minLength": 1 },
+    "kernel": { "type": "string", "minLength": 1 },
+    "governor": { "type": "string", "minLength": 1 },
+    "smt": { "type": "string", "minLength": 1 },
+    "p_core_cpus": { "type": "string", "minLength": 1 },
+    "e_core_cpus": { "type": "string", "minLength": 1 },
+    "sysfs_coherency_line_size": {
+      "type": ["integer", "string"],
+      "description": "Integer byte size or 'unknown'."
+    },
+    "hypervisor": { "type": "string", "minLength": 1 },
+    "loadavg_start": { "type": "string", "minLength": 1 },
+    "compiler": { "type": "string", "minLength": 1 },
+    "cflags": { "type": "string", "minLength": 1 },
+    "atomic_opcode": { "type": "string", "minLength": 1 },
+    "omp_runtime": { "type": "string", "minLength": 1 },
+    "omp_num_threads": { "type": "string", "minLength": 1 },
+    "omp_proc_bind": { "type": "string", "minLength": 1 },
+    "omp_places": { "type": "string", "minLength": 1 },
+    "git_sha": { "type": "string", "minLength": 1 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "shared_host": { "type": "boolean" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

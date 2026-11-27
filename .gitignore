@@ -58,3 +58,5 @@ dkms.conf
 AGENTS.md
 OPENCODE.md
 GEMINI.md
+.claude/
+mcp.json

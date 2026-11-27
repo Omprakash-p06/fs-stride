@@ -54,9 +54,41 @@ dkms.conf
 # debug information files
 *.dwo
 
-#Agent files
+# Generated benchmark / Python artifacts
+results/*
+!results/.gitkeep
+fs_stride
+analysis/*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# AI agent entry points, GSD planning, MCP, Copilot, and Graphicle local files
 AGENTS.md
+CLAUDE.md
 OPENCODE.md
+CODEX.md
+ANTIGRAVITY.md
 GEMINI.md
+T3CODE.md
+FREEBUFF.md
 .claude/
+.codex/
+.opencode/
+.antigravity/
+.gemini/
+.cursor/
+.windsurf/
+.copilot/
+.github/copilot-instructions.md
+.github/instructions/
+.github/agents/
+.planning/
 .mcp.json
+mcp.json
+.vscode/mcp.json
+.cursor/mcp.json
+.graphicle/
+.graphicleignore
+.graphiclerc
+*.graphicle-bak
